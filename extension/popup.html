@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkedIn De-Elonizer</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>De-Elonizer</h1>
+    <p class="subtitle">Unfollow Elon boosters automatically</p>
+
+    <div class="toggle-row">
+      <label class="toggle">
+        <input type="checkbox" id="enabledToggle">
+        <span class="slider"></span>
+      </label>
+      <span id="toggleLabel">Enabled</span>
+    </div>
+
+    <div class="stat">
+      <span class="stat-number" id="count">0</span>
+      <span class="stat-label">unfollowed this session</span>
+    </div>
+
+    <div class="triggers">
+      <p class="triggers-title">Triggers</p>
+      <ul>
+        <li>Embedded @elonmusk tweet</li>
+        <li>Positive sentiment about Elon, Tesla, SpaceX, or X</li>
+      </ul>
+    </div>
+
+    <button id="resetBtn" class="reset-btn">Reset counter</button>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
