@@ -170,16 +170,31 @@ async function clickUnfollowInMenu() {
   );
 }
 
+function isPromotedPost(postEl) {
+  // Promoted post containers have id starting with "feedControlMenu"; organic use "expanded"
+  return (postEl.id || '').startsWith('feedControlMenu') ||
+         !!postEl.querySelector('button[aria-label^="Hide ad"]');
+}
+
 async function clickHidePost(postEl) {
-  // LinkedIn exposes "Hide post by <name>" directly on the post — no menu needed.
-  const btn = postEl.querySelector('button[aria-label^="Hide post"]');
-  if (btn) { btn.click(); return true; }
-  // Fallback: open menu and look for hide/not-interested option
+  // Ads: button form
+  const adBtn = postEl.querySelector('button[aria-label^="Hide ad"]');
+  if (adBtn) { adBtn.click(); return true; }
+  // Ads: clickable <p> inside feedControlMenu (LinkedIn renders these as text nodes)
+  if (isPromotedPost(postEl)) {
+    for (const p of postEl.querySelectorAll('p')) {
+      if (/hide\s+ad/i.test(p.textContent)) { p.click(); return true; }
+    }
+  }
+  // Organic: direct button
+  const postBtn = postEl.querySelector('button[aria-label^="Hide post"]');
+  if (postBtn) { postBtn.click(); return true; }
+  // Fallback: open menu
   const opened = await clickEllipsis(postEl);
   if (!opened) return false;
   return clickMenuItemByControlName(
     ['not_interested', 'hide_post', 'not_interested_post'],
-    [/not interested/i, /don't want to see/i, /^hide this post/i, /^hide post/i]
+    [/not interested/i, /don't want to see/i, /^hide this post/i, /^hide post/i, /^hide ad/i]
   );
 }
 
@@ -191,11 +206,13 @@ async function processQueue() {
     if (!document.contains(postEl)) continue;
 
     const author = getAuthorFromPost(postEl);
+    const promoted = isPromotedPost(postEl);
     const alreadyUnfollowed = author && unfollowedAuthors.has(author);
 
-    // Step 1: Unfollow the author (skip if we've already unfollowed them this session).
-    // Do this first so the post element stays in the DOM for step 2.
-    if (!alreadyUnfollowed) {
+    // Step 1: Unfollow the author — skip for ads (no one to unfollow) and repeats.
+    if (promoted) {
+      console.log(`[De-Elonizer] Promoted post — skipping unfollow, hiding ad`);
+    } else if (!alreadyUnfollowed) {
       const opened = await clickEllipsis(postEl);
       if (!opened) {
         console.log('[De-Elonizer] Could not find ellipsis button');
