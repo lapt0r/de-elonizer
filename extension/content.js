@@ -41,16 +41,16 @@ const UNFOLLOW_JITTER_MS = 1000;
 const PROCESSED_ATTR = 'data-de-elonized';
 
 let enabled = true;
-let unfollowedCount = 0;
+let prunedCount = 0;
 let unfollowQueue = [];
 let queueRunning = false;
 const unfollowedAuthors = new Set();
 
 // ─── Initialisation ─────────────────────────────────────────────────────────
 
-browser.storage.local.get(['enabled', 'unfollowedCount']).then(result => {
+browser.storage.local.get(['enabled', 'prunedCount']).then(result => {
   enabled = result.enabled !== false;
-  unfollowedCount = result.unfollowedCount || 0;
+  prunedCount = result.prunedCount || 0;
   if (enabled) startObserver();
 });
 
@@ -230,10 +230,7 @@ async function processQueue() {
       } else {
         const unfollowed = await clickUnfollowInMenu();
         if (unfollowed) {
-          unfollowedCount++;
           if (author) unfollowedAuthors.add(author);
-          browser.storage.local.set({ unfollowedCount });
-          browser.runtime.sendMessage({ type: 'unfollowed', author, reason, count: unfollowedCount });
           console.log(`[De-Elonizer] Unfollowed "${author}" (${reason})`);
         } else {
           console.log(`[De-Elonizer] Unfollow menu item not found for "${author}"`);
@@ -242,12 +239,20 @@ async function processQueue() {
       }
     }
 
-    // Step 2: Hide the post ("Not Interested"). The "Hide post by X" button is
-    // directly on the post in current LinkedIn — no second menu open needed.
+    // Step 2: Hide the post. Count and verify removal on success.
     if (document.contains(postEl)) {
       const hidden = await clickHidePost(postEl);
       if (hidden) {
         console.log(`[De-Elonizer] Hid post by "${author}"`);
+        // Verify the post actually leaves the DOM within 1.5s.
+        await sleep(1500);
+        if (document.contains(postEl)) {
+          console.log(`[De-Elonizer] PRUNE ERROR: post by "${author}" still in DOM after hide`);
+        } else {
+          prunedCount++;
+          browser.storage.local.set({ prunedCount });
+          browser.runtime.sendMessage({ type: 'pruned', author, reason, count: prunedCount });
+        }
       } else {
         console.log(`[De-Elonizer] Could not hide post by "${author}"`);
       }
