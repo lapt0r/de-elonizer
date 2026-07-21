@@ -15,3 +15,5 @@ build/
 # Python
 __pycache__/
 *.pyc
+node_modules/
+extension/lib/sentiment.js
