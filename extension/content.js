@@ -69,14 +69,15 @@ function shouldUnfollow(postEl) {
   const text = postEl.innerText
     || [...postEl.querySelectorAll('p span, p')].map(el => el.textContent).join(' ')
     || '';
-  const html = postEl.innerHTML || '';
   const lower = text.toLowerCase();
   const snippet = text.slice(0, 80).replace(/\s+/g, ' ').trim();
 
-  // 1. Elon tweet / X post embedded in the post.
-  if (/@elonmusk/i.test(html) ||
-      /twitter\.com\/elonmusk/i.test(html) ||
-      /x\.com\/elonmusk/i.test(html)) {
+  // 1. Elon tweet / X post embedded — check link hrefs instead of innerHTML.
+  const hasElonLink = [...postEl.querySelectorAll('a[href]')].some(a => {
+    const href = a.getAttribute('href') || '';
+    return /elonmusk/i.test(href);
+  });
+  if (hasElonLink || /@elonmusk/i.test(text)) {
     console.log(`[De-Elonizer] HIT (elon-embed) | "${snippet}…"`);
     return 'elon-embed';
   }
@@ -207,8 +208,9 @@ async function processQueue() {
   if (queueRunning) return;
   queueRunning = true;
   while (unfollowQueue.length > 0) {
-    const { postEl, reason } = unfollowQueue.shift();
-    if (!document.contains(postEl)) continue;
+    const { ref, reason } = unfollowQueue.shift();
+    const postEl = ref.deref();
+    if (!postEl || !document.contains(postEl)) continue;
 
     const author = getAuthorFromPost(postEl);
     const promoted = isPromotedPost(postEl);
@@ -258,7 +260,8 @@ async function processQueue() {
 }
 
 function enqueue(postEl, reason) {
-  unfollowQueue.push({ postEl, reason });
+  // WeakRef lets GC collect virtualized posts LinkedIn removes from DOM.
+  unfollowQueue.push({ ref: new WeakRef(postEl), reason });
   processQueue();
 }
 
@@ -293,6 +296,8 @@ function scanAll() {
 // ─── MutationObserver ────────────────────────────────────────────────────────
 
 let observer = null;
+let mutationBuffer = [];
+let flushTimer = null;
 
 function extractPosts(node) {
   if (node.nodeType !== Node.ELEMENT_NODE) return [];
@@ -300,16 +305,23 @@ function extractPosts(node) {
   return [...(node.querySelectorAll?.(POST_SELECTOR_STRING) ?? [])];
 }
 
+function flushMutations() {
+  flushTimer = null;
+  const nodes = mutationBuffer;
+  mutationBuffer = [];
+  for (const node of nodes) extractPosts(node).forEach(scanPost);
+}
+
 function startObserver() {
   if (observer) return;
   console.log('[De-Elonizer] observer starting');
   scanAll();
   observer = new MutationObserver(mutations => {
-    for (const mut of mutations) {
-      for (const node of mut.addedNodes) {
-        extractPosts(node).forEach(scanPost);
-      }
-    }
+    for (const mut of mutations)
+      for (const node of mut.addedNodes)
+        mutationBuffer.push(node);
+    // Debounce: process burst of mutations in one batch after 300ms idle.
+    if (!flushTimer) flushTimer = setTimeout(flushMutations, 300);
   });
   observer.observe(document.body, { childList: true, subtree: true });
 }
@@ -317,4 +329,13 @@ function startObserver() {
 function stopObserver() {
   observer?.disconnect();
   observer = null;
+  if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+  mutationBuffer = [];
 }
+
+// Pause entirely when tab is backgrounded — LinkedIn still mutates the DOM.
+document.addEventListener('visibilitychange', () => {
+  if (!enabled) return;
+  if (document.hidden) stopObserver();
+  else startObserver();
+});
