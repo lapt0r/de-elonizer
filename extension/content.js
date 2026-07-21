@@ -171,9 +171,14 @@ async function clickUnfollowInMenu() {
 }
 
 function isPromotedPost(postEl) {
-  // Promoted post containers have id starting with "feedControlMenu"; organic use "expanded"
   return (postEl.id || '').startsWith('feedControlMenu') ||
          !!postEl.querySelector('button[aria-label^="Hide ad"]');
+}
+
+function isRecommendedPost(postEl) {
+  // "From your activity" / "Recommended" cards — no follow relationship, skip unfollow
+  const text = postEl.innerText || '';
+  return /from your activity/i.test(text) || /recommended for you/i.test(text);
 }
 
 async function clickHidePost(postEl) {
@@ -209,9 +214,13 @@ async function processQueue() {
     const promoted = isPromotedPost(postEl);
     const alreadyUnfollowed = author && unfollowedAuthors.has(author);
 
-    // Step 1: Unfollow the author — skip for ads (no one to unfollow) and repeats.
+    const recommended = isRecommendedPost(postEl);
+
+    // Step 1: Unfollow the author — skip for ads/recommended (no follow relationship).
     if (promoted) {
       console.log(`[De-Elonizer] Promoted post — skipping unfollow, hiding ad`);
+    } else if (recommended) {
+      console.log(`[De-Elonizer] Recommended post — skipping unfollow, hiding`);
     } else if (!alreadyUnfollowed) {
       const opened = await clickEllipsis(postEl);
       if (!opened) {
@@ -268,9 +277,10 @@ function scanPost(postEl) {
 }
 
 const POST_SELECTORS = [
-  '[id*="FeedType_"]',           // current LinkedIn (2025+): id="expanded<hash>FeedType_MAIN_FEED_RELEVANCE"
-  'div.feed-shared-update-v2',   // legacy
-  'li.occludable-update',        // legacy
+  '[id^="expanded"][id*="FeedType_"]',          // organic posts
+  '[id^="feedControlMenu"][id*="FeedType_"]',   // promoted posts
+  'div.feed-shared-update-v2',                  // legacy
+  'li.occludable-update',                       // legacy
   'div[data-urn*="urn:li:activity"]',
   'div[data-id*="urn:li:activity"]',
 ];
