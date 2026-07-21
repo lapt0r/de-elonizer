@@ -127,26 +127,36 @@ async function clickEllipsis(postEl) {
   return false;
 }
 
-async function clickUnfollowInMenu() {
+async function clickMenuItemByControlName(controlNames, textPatterns) {
   await sleep(500);
-  const menuSelectors = [
-    '[data-control-name="unfollow_member"]',
-    '[data-control-name="unfollow_company"]',
-    '[data-control-name="unfollow"]',
-  ];
-  for (const sel of menuSelectors) {
-    const el = document.querySelector(sel);
+  for (const name of controlNames) {
+    const el = document.querySelector(`[data-control-name="${name}"]`);
     if (el) { el.click(); return true; }
   }
   const menuItems = document.querySelectorAll('[role="menuitem"], [role="option"], li button');
   for (const item of menuItems) {
-    if (/^unfollow/i.test(item.textContent.trim())) {
+    const text = item.textContent.trim();
+    if (textPatterns.some(p => p.test(text))) {
       item.click();
       return true;
     }
   }
   document.body.click();
   return false;
+}
+
+async function clickUnfollowInMenu() {
+  return clickMenuItemByControlName(
+    ['unfollow_member', 'unfollow_company', 'unfollow'],
+    [/^unfollow/i]
+  );
+}
+
+async function clickNotInterestedInMenu() {
+  return clickMenuItemByControlName(
+    ['not_interested', 'hide_post', 'not_interested_post', 'not_interested_in_this_post'],
+    [/not interested/i, /don't want to see/i, /^hide this post/i, /^hide post/i]
+  );
 }
 
 async function processQueue() {
@@ -157,23 +167,42 @@ async function processQueue() {
     if (!document.contains(postEl)) continue;
 
     const author = getAuthorFromPost(postEl);
-    if (author && unfollowedAuthors.has(author)) continue;
+    const alreadyUnfollowed = author && unfollowedAuthors.has(author);
 
-    const opened = await clickEllipsis(postEl);
-    if (!opened) {
-      console.debug('[De-Elonizer] Could not find ellipsis button in post');
-      continue;
+    // Step 1: Unfollow the author (skip if we've already unfollowed them this session).
+    // Do this first so the post element stays in the DOM for step 2.
+    if (!alreadyUnfollowed) {
+      const opened = await clickEllipsis(postEl);
+      if (!opened) {
+        console.debug('[De-Elonizer] Could not find ellipsis button');
+      } else {
+        const unfollowed = await clickUnfollowInMenu();
+        if (unfollowed) {
+          unfollowedCount++;
+          if (author) unfollowedAuthors.add(author);
+          browser.storage.local.set({ unfollowedCount });
+          browser.runtime.sendMessage({ type: 'unfollowed', author, reason, count: unfollowedCount });
+          console.debug(`[De-Elonizer] Unfollowed "${author}" (${reason})`);
+        } else {
+          console.debug(`[De-Elonizer] Unfollow menu item not found for "${author}"`);
+        }
+        await sleep(400);
+      }
     }
 
-    const unfollowed = await clickUnfollowInMenu();
-    if (unfollowed) {
-      unfollowedCount++;
-      if (author) unfollowedAuthors.add(author);
-      browser.storage.local.set({ unfollowedCount });
-      browser.runtime.sendMessage({ type: 'unfollowed', author, reason, count: unfollowedCount });
-      console.debug(`[De-Elonizer] Unfollowed "${author}" (${reason})`);
-    } else {
-      console.debug(`[De-Elonizer] Unfollow menu item not found for "${author}"`);
+    // Step 2: Mark the post as "Not Interested" (hides it from the feed).
+    // Open the menu a second time — it closes after each click.
+    // Post may leave the DOM after this action, which is expected.
+    if (document.contains(postEl)) {
+      const opened2 = await clickEllipsis(postEl);
+      if (opened2) {
+        const hidden = await clickNotInterestedInMenu();
+        if (hidden) {
+          console.debug(`[De-Elonizer] Marked post by "${author}" as Not Interested`);
+        } else {
+          console.debug(`[De-Elonizer] Not Interested menu item not found for post by "${author}"`);
+        }
+      }
     }
 
     const delay = UNFOLLOW_DELAY_MS + Math.random() * UNFOLLOW_JITTER_MS;
