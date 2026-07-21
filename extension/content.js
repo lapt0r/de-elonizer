@@ -1,3 +1,5 @@
+console.log('[De-Elonizer] content script loaded v' + (typeof browser !== 'undefined' ? 'browser' : 'chrome'));
+
 // Target entities — post must mention at least one to be considered.
 const TARGETS = [
   'elon', 'musk', '@elonmusk', '#elonmusk', 'tesla', 'spacex',
@@ -64,7 +66,9 @@ browser.storage.onChanged.addListener((changes, area) => {
 // ─── Detection ──────────────────────────────────────────────────────────────
 
 function shouldUnfollow(postEl) {
-  const text = postEl.innerText || '';
+  const text = postEl.innerText
+    || [...postEl.querySelectorAll('p span, p')].map(el => el.textContent).join(' ')
+    || '';
   const html = postEl.innerHTML || '';
   const lower = text.toLowerCase();
   const snippet = text.slice(0, 80).replace(/\s+/g, ' ').trim();
@@ -73,13 +77,13 @@ function shouldUnfollow(postEl) {
   if (/@elonmusk/i.test(html) ||
       /twitter\.com\/elonmusk/i.test(html) ||
       /x\.com\/elonmusk/i.test(html)) {
-    console.debug(`[De-Elonizer] HIT (elon-embed) | "${snippet}…"`);
+    console.log(`[De-Elonizer] HIT (elon-embed) | "${snippet}…"`);
     return 'elon-embed';
   }
 
   // 2. Post must mention at least one target entity.
   if (!TARGETS.some(t => lower.includes(t))) {
-    console.debug(`[De-Elonizer] skip (no target) | "${snippet}…"`);
+    console.log(`[De-Elonizer] skip (no target) | "${snippet}…"`);
     return null;
   }
 
@@ -88,13 +92,13 @@ function shouldUnfollow(postEl) {
   const { score, comparative, positive, negative } = result;
 
   if (score >= SCORE_MIN && comparative >= COMPARATIVE_MIN) {
-    console.debug(
+    console.log(
       `[De-Elonizer] HIT (score=${score} cmp=${comparative.toFixed(2)}) +[${positive}] -[${negative}] | "${snippet}…"`
     );
     return 'positive-sentiment';
   }
 
-  console.debug(
+  console.log(
     `[De-Elonizer] skip (score=${score} cmp=${comparative.toFixed(2)}) +[${positive}] -[${negative}] | "${snippet}…"`
   );
   return null;
@@ -107,15 +111,19 @@ function sleep(ms) {
 }
 
 function getAuthorFromPost(postEl) {
-  const selectors = [
+  // Extract from aria-label: "Open control menu for post by <Name>"
+  const controlBtn = postEl.querySelector('button[aria-label^="Open control menu for post by "]');
+  if (controlBtn) {
+    const m = controlBtn.getAttribute('aria-label').match(/^Open control menu for post by (.+)$/);
+    if (m) return m[1];
+  }
+  // Legacy class-based selectors
+  for (const sel of [
     '.update-components-actor__name span[aria-hidden="true"]',
     '.feed-shared-actor__name span[aria-hidden="true"]',
     '.update-components-actor__name',
     '.feed-shared-actor__name',
-    'a[data-control-name="actor_container"] span[aria-hidden]',
-    '[data-view-name="profile-card"] span[aria-hidden="true"]',
-  ];
-  for (const sel of selectors) {
+  ]) {
     const el = postEl.querySelector(sel);
     if (el?.textContent?.trim()) return el.textContent.trim();
   }
@@ -123,17 +131,14 @@ function getAuthorFromPost(postEl) {
 }
 
 async function clickEllipsis(postEl) {
-  const selectors = [
-    'button[aria-label="Open control menu"]',
+  for (const sel of [
+    'button[aria-label^="Open control menu for post"]',
     'button[aria-label*="Open control menu"]',
     'button.feed-shared-control-menu__trigger',
     'button[data-control-name="ellipsis"]',
-    '.feed-shared-update-v2__control-menu button',
-    '.update-v2-social-activity button[aria-label*="menu"]',
     'button[aria-label*="options"]',
     'button[aria-haspopup="true"][aria-label*="more"]',
-  ];
-  for (const sel of selectors) {
+  ]) {
     const btn = postEl.querySelector(sel);
     if (btn) { btn.click(); return true; }
   }
@@ -165,9 +170,15 @@ async function clickUnfollowInMenu() {
   );
 }
 
-async function clickNotInterestedInMenu() {
+async function clickHidePost(postEl) {
+  // LinkedIn exposes "Hide post by <name>" directly on the post — no menu needed.
+  const btn = postEl.querySelector('button[aria-label^="Hide post"]');
+  if (btn) { btn.click(); return true; }
+  // Fallback: open menu and look for hide/not-interested option
+  const opened = await clickEllipsis(postEl);
+  if (!opened) return false;
   return clickMenuItemByControlName(
-    ['not_interested', 'hide_post', 'not_interested_post', 'not_interested_in_this_post'],
+    ['not_interested', 'hide_post', 'not_interested_post'],
     [/not interested/i, /don't want to see/i, /^hide this post/i, /^hide post/i]
   );
 }
@@ -187,7 +198,7 @@ async function processQueue() {
     if (!alreadyUnfollowed) {
       const opened = await clickEllipsis(postEl);
       if (!opened) {
-        console.debug('[De-Elonizer] Could not find ellipsis button');
+        console.log('[De-Elonizer] Could not find ellipsis button');
       } else {
         const unfollowed = await clickUnfollowInMenu();
         if (unfollowed) {
@@ -195,26 +206,22 @@ async function processQueue() {
           if (author) unfollowedAuthors.add(author);
           browser.storage.local.set({ unfollowedCount });
           browser.runtime.sendMessage({ type: 'unfollowed', author, reason, count: unfollowedCount });
-          console.debug(`[De-Elonizer] Unfollowed "${author}" (${reason})`);
+          console.log(`[De-Elonizer] Unfollowed "${author}" (${reason})`);
         } else {
-          console.debug(`[De-Elonizer] Unfollow menu item not found for "${author}"`);
+          console.log(`[De-Elonizer] Unfollow menu item not found for "${author}"`);
         }
         await sleep(400);
       }
     }
 
-    // Step 2: Mark the post as "Not Interested" (hides it from the feed).
-    // Open the menu a second time — it closes after each click.
-    // Post may leave the DOM after this action, which is expected.
+    // Step 2: Hide the post ("Not Interested"). The "Hide post by X" button is
+    // directly on the post in current LinkedIn — no second menu open needed.
     if (document.contains(postEl)) {
-      const opened2 = await clickEllipsis(postEl);
-      if (opened2) {
-        const hidden = await clickNotInterestedInMenu();
-        if (hidden) {
-          console.debug(`[De-Elonizer] Marked post by "${author}" as Not Interested`);
-        } else {
-          console.debug(`[De-Elonizer] Not Interested menu item not found for post by "${author}"`);
-        }
+      const hidden = await clickHidePost(postEl);
+      if (hidden) {
+        console.log(`[De-Elonizer] Hid post by "${author}"`);
+      } else {
+        console.log(`[De-Elonizer] Could not hide post by "${author}"`);
       }
     }
 
@@ -238,14 +245,15 @@ function scanPost(postEl) {
 
   const reason = shouldUnfollow(postEl);
   if (reason) {
-    console.debug(`[De-Elonizer] Detected post (${reason}), queueing unfollow`);
+    console.log(`[De-Elonizer] Detected post (${reason}), queueing unfollow`);
     enqueue(postEl, reason);
   }
 }
 
 const POST_SELECTORS = [
-  'div.feed-shared-update-v2',
-  'li.occludable-update',
+  '[id*="FeedType_"]',           // current LinkedIn (2025+): id="expanded<hash>FeedType_MAIN_FEED_RELEVANCE"
+  'div.feed-shared-update-v2',   // legacy
+  'li.occludable-update',        // legacy
   'div[data-urn*="urn:li:activity"]',
   'div[data-id*="urn:li:activity"]',
 ];
@@ -267,6 +275,7 @@ function extractPosts(node) {
 
 function startObserver() {
   if (observer) return;
+  console.log('[De-Elonizer] observer starting');
   scanAll();
   observer = new MutationObserver(mutations => {
     for (const mut of mutations) {
