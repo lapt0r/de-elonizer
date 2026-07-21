@@ -67,23 +67,36 @@ function shouldUnfollow(postEl) {
   const text = postEl.innerText || '';
   const html = postEl.innerHTML || '';
   const lower = text.toLowerCase();
+  const snippet = text.slice(0, 80).replace(/\s+/g, ' ').trim();
 
   // 1. Elon tweet / X post embedded in the post.
   if (/@elonmusk/i.test(html) ||
       /twitter\.com\/elonmusk/i.test(html) ||
       /x\.com\/elonmusk/i.test(html)) {
+    console.debug(`[De-Elonizer] HIT (elon-embed) | "${snippet}…"`);
     return 'elon-embed';
   }
 
   // 2. Post must mention at least one target entity.
-  if (!TARGETS.some(t => lower.includes(t))) return null;
+  if (!TARGETS.some(t => lower.includes(t))) {
+    console.debug(`[De-Elonizer] skip (no target) | "${snippet}…"`);
+    return null;
+  }
 
   // 3. Run AFINN sentiment with domain overrides.
   const result = _sentiment.analyze(text, { extras: SENTIMENT_EXTRAS });
-  if (result.score >= SCORE_MIN && result.comparative >= COMPARATIVE_MIN) {
+  const { score, comparative, positive, negative } = result;
+
+  if (score >= SCORE_MIN && comparative >= COMPARATIVE_MIN) {
+    console.debug(
+      `[De-Elonizer] HIT (score=${score} cmp=${comparative.toFixed(2)}) +[${positive}] -[${negative}] | "${snippet}…"`
+    );
     return 'positive-sentiment';
   }
 
+  console.debug(
+    `[De-Elonizer] skip (score=${score} cmp=${comparative.toFixed(2)}) +[${positive}] -[${negative}] | "${snippet}…"`
+  );
   return null;
 }
 
