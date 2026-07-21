@@ -14,7 +14,7 @@
   "content_scripts": [
     {
       "matches": ["https://*.linkedin.com/feed/*", "https://*.linkedin.com/"],
-      "js": ["lib/sentiment.min.js", "content.js"],
+      "js": ["sentiment.min.js", "content.js"],
       "run_at": "document_idle"
     }
   ],

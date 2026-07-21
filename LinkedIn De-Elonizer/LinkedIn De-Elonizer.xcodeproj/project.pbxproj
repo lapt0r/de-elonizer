@@ -43,6 +43,8 @@
 		71A871E5300AAA3B006A5217 /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 71A871D7300AAA3B006A5217 /* manifest.json */; };
 		71A871E6300AAA3B006A5217 /* popup.css in Resources */ = {isa = PBXBuildFile; fileRef = 71A871D8300AAA3B006A5217 /* popup.css */; };
 		71A871E7300AAA3B006A5217 /* content.js in Resources */ = {isa = PBXBuildFile; fileRef = 71A871D9300AAA3B006A5217 /* content.js */; };
+		71A871E8300AAA3B006A5217 /* sentiment.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 71A871EA300AAA3B006A5217 /* sentiment.min.js */; };
+		71A871E9300AAA3B006A5217 /* sentiment.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 71A871EA300AAA3B006A5217 /* sentiment.min.js */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -116,6 +118,7 @@
 		71A871D7300AAA3B006A5217 /* manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = manifest.json; path = ../../extension/manifest.json; sourceTree = "<group>"; };
 		71A871D8300AAA3B006A5217 /* popup.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; name = popup.css; path = ../../extension/popup.css; sourceTree = "<group>"; };
 		71A871D9300AAA3B006A5217 /* content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = content.js; path = ../../extension/content.js; sourceTree = "<group>"; };
+		71A871EA300AAA3B006A5217 /* sentiment.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = sentiment.min.js; path = ../../extension/sentiment.min.js; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -252,6 +255,7 @@
 				71A871D7300AAA3B006A5217 /* manifest.json */,
 				71A871D8300AAA3B006A5217 /* popup.css */,
 				71A871D9300AAA3B006A5217 /* content.js */,
+				71A871EA300AAA3B006A5217 /* sentiment.min.js */,
 			);
 			name = Resources;
 			path = "Shared (Extension)";
@@ -425,6 +429,7 @@
 				71A871E3300AAA3B006A5217 /* popup.html in Resources */,
 				71A871E7300AAA3B006A5217 /* content.js in Resources */,
 				71A871E1300AAA3B006A5217 /* popup.js in Resources */,
+				71A871E8300AAA3B006A5217 /* sentiment.min.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -439,6 +444,7 @@
 				71A871DC300AAA3B006A5217 /* popup.html in Resources */,
 				71A871E0300AAA3B006A5217 /* content.js in Resources */,
 				71A871DA300AAA3B006A5217 /* popup.js in Resources */,
+				71A871E9300AAA3B006A5217 /* sentiment.min.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
