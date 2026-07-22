@@ -387,3 +387,27 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) stopObserver();
   else startObserver();
 });
+
+// ─── Memory pressure logging ─────────────────────────────────────────────────
+
+const MEMORY_STEP = 500 * 1024;
+let lastMemoryThreshold = 0;
+
+async function checkMemoryPressure() {
+  let bytes = 0;
+  try {
+    // Preferred: cross-agent memory API (Safari 15+, requires isolation)
+    bytes = (await performance.measureUserAgentSpecificMemory()).bytes;
+  } catch (_) {
+    // Fallback: Chrome non-standard property
+    bytes = window.performance?.memory?.usedJSHeapSize || 0;
+  }
+  if (!bytes) return;
+  const threshold = Math.floor(bytes / MEMORY_STEP) * MEMORY_STEP;
+  if (threshold > lastMemoryThreshold) {
+    lastMemoryThreshold = threshold;
+    console.log(`[De-Elonizer] memory pressure: ~${Math.round(bytes / 1024)}KB (crossed ${threshold / 1024}KB mark)`);
+  }
+}
+
+setInterval(checkMemoryPressure, 30_000);
