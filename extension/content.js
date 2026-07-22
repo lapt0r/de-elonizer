@@ -45,8 +45,19 @@ let prunedCount = 0;
 let unfollowQueue = [];
 let queueRunning = false;
 const unfollowedAuthors = new Set();
+let instantTriggers = [];
 
 // ─── Initialisation ─────────────────────────────────────────────────────────
+
+// Load local config (untracked, personal). Absent file = no instant triggers.
+fetch(browser.runtime.getURL('config.local.json'))
+  .then(r => r.json())
+  .then(cfg => {
+    instantTriggers = cfg.instantTriggers || [];
+    if (instantTriggers.length)
+      console.log(`[De-Elonizer] instant triggers loaded: ${instantTriggers.join(' ')}`);
+  })
+  .catch(() => {});
 
 browser.storage.local.get(['enabled', 'prunedCount']).then(result => {
   enabled = result.enabled !== false;
@@ -71,6 +82,12 @@ function shouldUnfollow(postEl) {
     || '';
   const lower = text.toLowerCase();
   const snippet = text.slice(0, 80).replace(/\s+/g, ' ').trim();
+
+  // 0. Instant triggers from config.local.json — bypass sentiment entirely.
+  if (instantTriggers.length && instantTriggers.some(t => text.includes(t))) {
+    console.log(`[De-Elonizer] HIT (instant-trigger) | "${snippet}…"`);
+    return 'instant-trigger';
+  }
 
   // 1. Elon tweet / X post embedded — check link hrefs instead of innerHTML.
   const hasElonLink = [...postEl.querySelectorAll('a[href]')].some(a => {
@@ -171,6 +188,13 @@ async function clickUnfollowInMenu() {
   );
 }
 
+async function clickRemoveConnectionInMenu() {
+  return clickMenuItemByControlName(
+    ['remove_connection', 'disconnect'],
+    [/^remove connection/i, /^disconnect/i, /^remove from/i]
+  );
+}
+
 function isPromotedPost(postEl) {
   return (postEl.id || '').startsWith('feedControlMenu') ||
          !!postEl.querySelector('button[aria-label^="Hide ad"]');
@@ -218,7 +242,9 @@ async function processQueue() {
 
     const recommended = isRecommendedPost(postEl);
 
-    // Step 1: Unfollow the author — skip for ads/recommended (no follow relationship).
+    // Step 1: Unfollow / remove connection.
+    // instant-trigger → remove connection (nuclear); ads/recommended → skip;
+    // normal hits → unfollow.
     if (promoted) {
       console.log(`[De-Elonizer] Promoted post — skipping unfollow, hiding ad`);
     } else if (recommended) {
@@ -228,12 +254,29 @@ async function processQueue() {
       if (!opened) {
         console.log('[De-Elonizer] Could not find ellipsis button');
       } else {
-        const unfollowed = await clickUnfollowInMenu();
-        if (unfollowed) {
-          if (author) unfollowedAuthors.add(author);
-          console.log(`[De-Elonizer] Unfollowed "${author}" (${reason})`);
+        if (reason === 'instant-trigger') {
+          const removed = await clickRemoveConnectionInMenu();
+          if (removed) {
+            if (author) unfollowedAuthors.add(author);
+            console.log(`[De-Elonizer] Removed connection "${author}" (instant-trigger)`);
+          } else {
+            // Fall back to unfollow if not a 1st-degree connection.
+            const unfollowed = await clickUnfollowInMenu();
+            if (unfollowed) {
+              if (author) unfollowedAuthors.add(author);
+              console.log(`[De-Elonizer] Unfollowed "${author}" (instant-trigger, not connected)`);
+            } else {
+              console.log(`[De-Elonizer] Could not remove/unfollow "${author}"`);
+            }
+          }
         } else {
-          console.log(`[De-Elonizer] Unfollow menu item not found for "${author}"`);
+          const unfollowed = await clickUnfollowInMenu();
+          if (unfollowed) {
+            if (author) unfollowedAuthors.add(author);
+            console.log(`[De-Elonizer] Unfollowed "${author}" (${reason})`);
+          } else {
+            console.log(`[De-Elonizer] Unfollow menu item not found for "${author}"`);
+          }
         }
         await sleep(400);
       }

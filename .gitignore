@@ -17,6 +17,9 @@ node_modules/
 package.json
 package-lock.json
 
+# Local-only config (personal trigger lists, not for public repo)
+extension/config.local.json
+
 # Legacy paths
 extension/lib/
 LinkedIn De-Elonizer/
