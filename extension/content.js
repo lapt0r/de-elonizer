@@ -100,10 +100,7 @@ function shouldUnfollow(postEl) {
   }
 
   // 2. Post must mention at least one target entity.
-  if (!TARGETS.some(t => lower.includes(t))) {
-    console.debug(`[De-Elonizer] skip (no target) | "${snippet}…"`);
-    return null;
-  }
+  if (!TARGETS.some(t => lower.includes(t))) return null;
 
   // 3. Run AFINN sentiment with domain overrides.
   const result = _sentiment.analyze(text, { extras: SENTIMENT_EXTRAS });
