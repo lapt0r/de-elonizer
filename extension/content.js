@@ -101,7 +101,7 @@ function shouldUnfollow(postEl) {
 
   // 2. Post must mention at least one target entity.
   if (!TARGETS.some(t => lower.includes(t))) {
-    console.log(`[De-Elonizer] skip (no target) | "${snippet}…"`);
+    console.debug(`[De-Elonizer] skip (no target) | "${snippet}…"`);
     return null;
   }
 
