@@ -7,6 +7,13 @@
   "permissions": ["storage"],
   "host_permissions": ["https://*.linkedin.com/*"],
 
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "de-elonizer@lapt0r",
+      "strict_min_version": "109.0"
+    }
+  },
+
   "background": {
     "service_worker": "background.js"
   },
@@ -14,7 +21,7 @@
   "content_scripts": [
     {
       "matches": ["https://*.linkedin.com/feed/*", "https://*.linkedin.com/"],
-      "js": ["sentiment.min.js", "content.js"],
+      "js": ["browser-compat.js", "sentiment.min.js", "content.js"],
       "run_at": "document_idle"
     }
   ],

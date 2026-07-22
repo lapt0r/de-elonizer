@@ -17,6 +17,9 @@ node_modules/
 package.json
 package-lock.json
 
+# Browser extension packages (produced by `make chrome` / `make firefox`)
+dist/
+
 # Local-only config (personal trigger lists, not for public repo)
 extension/config.local.json
 

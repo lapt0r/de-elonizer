@@ -30,7 +30,9 @@ XCFLAGS := -project "$(PROJECT)" \
             CODE_SIGN_STYLE=Manual \
             "CODE_SIGN_IDENTITY=$(IDENTITY)"
 
-.PHONY: all install build package check clean
+DIST_DIR := dist
+
+.PHONY: all install build package check clean chrome firefox
 
 all: install
 
@@ -83,5 +85,15 @@ install: build
 	@echo "  2. Safari → Settings → Extensions → enable LinkedIn De-Elonizer"
 	@echo "  3. Grant access to linkedin.com when prompted"
 
+chrome:
+	@mkdir -p "$(DIST_DIR)"
+	@cd extension && zip -r "../$(DIST_DIR)/chrome.zip" . -x "config.local.json"
+	@echo "→ Built $(DIST_DIR)/chrome.zip"
+
+firefox:
+	@mkdir -p "$(DIST_DIR)"
+	@cd extension && zip -r "../$(DIST_DIR)/firefox.zip" . -x "config.local.json"
+	@echo "→ Built $(DIST_DIR)/firefox.zip"
+
 clean:
-	rm -rf "$(BUILD_DIR)"
+	rm -rf "$(BUILD_DIR)" "$(DIST_DIR)"
